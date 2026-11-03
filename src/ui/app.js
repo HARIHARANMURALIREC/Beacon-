@@ -749,6 +749,65 @@ function settingsForm() {
   };
 }
 
+let updateState = { status: 'idle' };
+
+function updateStatusText(state) {
+  if (state.status === 'checking') return ' · Checking for updates';
+  if (state.status === 'current') return ' · Up to date';
+  if (state.status === 'downloading') return ` · Downloading ${state.version} (${state.percent}%)`;
+  if (state.status === 'ready') return ` · ${state.version} is ready`;
+  if (state.status === 'error') return ' · Could not check for updates';
+  return '';
+}
+
+function renderUpdate() {
+  const state = updateState;
+  $('set-version').textContent = `Beacon ${state.currentVersion || ''}`;
+  $('set-update-status').textContent = updateStatusText(state);
+  $('check-updates').disabled = ['checking', 'downloading', 'ready'].includes(state.status);
+  // Failed background checks stay out of the way, as being offline is normal.
+  const show = state.status === 'ready' || state.status === 'downloading' || Boolean(state.installError);
+  $('update-banner').hidden = !show;
+  if (!show) return;
+  const action = $('update-action');
+  if (state.installError) {
+    $('update-title').textContent = 'Update could not be installed';
+    $('update-detail').textContent = state.installError;
+    action.hidden = false;
+    action.textContent = 'Download';
+  } else if (state.status === 'ready') {
+    $('update-title').textContent = `Beacon ${state.version} is ready`;
+    $('update-detail').textContent = 'Restart to finish updating';
+    action.hidden = false;
+    action.textContent = 'Restart';
+  } else {
+    $('update-title').textContent = `Downloading Beacon ${state.version}`;
+    $('update-detail').textContent = `${state.percent}%`;
+    action.hidden = true;
+  }
+}
+
+$('update-action').addEventListener('click', async () => {
+  if (updateState.installError) {
+    window.messenger.openReleases();
+    return;
+  }
+  $('update-action').disabled = true;
+  try {
+    await window.messenger.installUpdate();
+  } catch (err) {
+    updateState = { ...updateState, installError: cleanError(err) };
+    renderUpdate();
+  } finally {
+    $('update-action').disabled = false;
+  }
+});
+$('check-updates').addEventListener('click', () => window.messenger.checkUpdates());
+window.messenger.onUpdateState((state) => {
+  updateState = state;
+  renderUpdate();
+});
+
 function renderMe() {
   $('my-name').textContent = settings.name;
   $('sort').value = settings.sort;
@@ -856,6 +915,8 @@ window.messenger.onOpenConversation(openConversation);
 
 window.messenger.state().then((state) => {
   ({ settings, peers, messages, groups, unread } = state);
+  updateState = state.update;
+  renderUpdate();
   renderMe();
   renderPeople();
 });

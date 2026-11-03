@@ -5,6 +5,14 @@ const net = require('net');
 const os = require('os');
 const path = require('path');
 const { Engine } = require('./core/engine');
+const { Updater } = require('./core/updater');
+const { macAppPath, canReplaceMacApp, installMacUpdate, removeUpdateLeftovers, startWindowsInstaller } = require('./core/install-update');
+const UPDATE_KEY = require('./core/update-key');
+
+const RELEASES_URL = 'https://github.com/HARIHARANMURALIREC/Beacon-/releases/latest';
+const UPDATE_FEED = process.env.BEACON_UPDATE_FEED || `${RELEASES_URL}/download/`;
+const FIRST_CHECK_MS = 15000;
+const CHECK_EVERY_MS = 4 * 60 * 60 * 1000;
 
 let engine;
 let settings;
@@ -13,6 +21,7 @@ let mainWindow;
 let quitting = false;
 const unread = {};
 let activeConversation = null;
+let updater;
 
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 
@@ -142,6 +151,44 @@ function createTray() {
   tray.on('click', showWindow);
 }
 
+function updatePlatform() {
+  return process.platform === 'win32' ? 'win32' : `${process.platform}-${process.arch}`;
+}
+
+function startUpdater() {
+  updater = new Updater({
+    currentVersion: app.getVersion(),
+    platform: updatePlatform(),
+    feedUrl: UPDATE_FEED,
+    publicKey: UPDATE_KEY,
+    dir: path.join(app.getPath('userData'), 'updates'),
+  });
+  updater.on('state', (state) => send('update-state', state));
+  // Running from source has nothing to replace.
+  if (!app.isPackaged) return;
+  // The version being replaced may still be closing just after a restart.
+  setTimeout(() => removeUpdateLeftovers(macAppPath(process.execPath)), 30000);
+  setTimeout(() => updater.check(), FIRST_CHECK_MS);
+  setInterval(() => updater.check(), CHECK_EVERY_MS).unref();
+}
+
+async function installUpdate() {
+  const { status, file } = updater.state;
+  if (status !== 'ready') throw new Error('No update is ready');
+  if (process.platform === 'win32') {
+    startWindowsInstaller(file, process.execPath);
+    app.quit();
+    return;
+  }
+  const appPath = macAppPath(process.execPath);
+  if (!(await canReplaceMacApp(appPath))) {
+    throw new Error('Move Beacon to your Applications folder, reopen it, then try again.');
+  }
+  await installMacUpdate(file, appPath);
+  app.relaunch();
+  app.quit();
+}
+
 function publicSettings() {
   return { ...settings, id: engine.id, port: engine.listenPort };
 }
@@ -153,7 +200,11 @@ function registerIpc() {
     messages: engine.store.data.messages,
     groups: engine.store.data.groups,
     unread,
+    update: updater.state,
   }));
+  ipcMain.handle('check-updates', () => updater.check());
+  ipcMain.handle('install-update', () => installUpdate());
+  ipcMain.handle('open-releases', () => shell.openExternal(RELEASES_URL));
   ipcMain.handle('send-text', (_event, conv, text, options) => {
     engine.sendText(conv, text, options);
   });
@@ -236,6 +287,8 @@ async function start() {
     awayText: settings.awayText,
     autoAccept: settings.autoAccept,
     readReceipts: settings.readReceipts,
+    // Tests use their own port so their fake names never reach real copies on the network.
+    udpPort: process.env.BEACON_UDP_PORT ? Number(process.env.BEACON_UDP_PORT) : undefined,
   });
   engine.on('peers', () => send('peers', engine.listPeers()));
   engine.on('groups', () => send('groups', engine.store.data.groups));
@@ -245,6 +298,7 @@ async function start() {
   });
   engine.on('updated', (message) => send('updated', message));
   engine.on('warning', (warning) => console.warn(warning));
+  startUpdater();
   registerIpc();
   createWindow();
   createTray();

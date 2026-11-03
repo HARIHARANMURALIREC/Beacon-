@@ -31,6 +31,13 @@
       <button id="new-group" class="ghost small" type="button">New group</button>
     </div>
     <nav id="people" aria-label="People"></nav>
+    <div id="update-banner" class="update-banner" role="status" hidden>
+      <div class="update-text">
+        <strong id="update-title"></strong>
+        <span id="update-detail" class="muted"></span>
+      </div>
+      <button id="update-action" class="primary small" type="button" hidden></button>
+    </div>
     <footer class="me">
       <span id="my-avatar" class="avatar" aria-hidden="true"></span>
       <span class="me-text">
@@ -163,6 +170,10 @@
       <label class="check-row">
         <input id="set-login" type="checkbox"> Open when I sign in
       </label>
+      <div class="update-row">
+        <span class="muted hint"><span id="set-version"></span><span id="set-update-status"></span></span>
+        <button id="check-updates" class="ghost small" type="button">Check for updates</button>
+      </div>
       <p class="muted hint">Your device ID: <code id="set-id"></code></p>
       <p id="settings-error" class="error" role="alert" hidden></p>
       <div class="actions">

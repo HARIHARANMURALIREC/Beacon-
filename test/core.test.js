@@ -463,3 +463,110 @@ test('images arrive and non-images are refused', async () => {
   assert.equal(incoming(b, a.id).length, 1);
   channel.destroy();
 });
+
+const { Updater, compareVersions, readManifest } = require('../src/core/updater');
+const http = require('node:http');
+
+function signedManifest(privateKey, version, files) {
+  const payload = Buffer.from(JSON.stringify({ version, files })).toString('base64');
+  return JSON.stringify({ payload, signature: crypto.sign(null, Buffer.from(payload), privateKey).toString('base64') });
+}
+
+async function updateServer(routes) {
+  const server = http.createServer((req, res) => {
+    const body = routes[req.url];
+    if (body === undefined) {
+      res.writeHead(404).end();
+    } else {
+      res.writeHead(200).end(body);
+    }
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return { url: `http://127.0.0.1:${server.address().port}/`, close: () => { server.closeAllConnections(); server.close(); } };
+}
+
+function updateKeys() {
+  const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
+  return { privateKey, publicKey: publicKey.export({ type: 'spki', format: 'der' }).toString('base64') };
+}
+
+function makeUpdater(url, publicKey, currentVersion = '1.0.0') {
+  return new Updater({ currentVersion, platform: 'darwin-arm64', feedUrl: url, publicKey, dir: path.join(root, `updates-${crypto.randomUUID()}`) });
+}
+
+test('versions compare numerically', () => {
+  assert.equal(compareVersions('0.10.0', '0.9.9'), 1);
+  assert.equal(compareVersions('1.0.0', '1.0.0'), 0);
+  assert.equal(compareVersions('1.2.3', '1.3.0'), -1);
+});
+
+test('a correctly signed update downloads and is marked ready', async () => {
+  const { privateKey, publicKey } = updateKeys();
+  const data = crypto.randomBytes(300000);
+  const entry = { name: 'Beacon-2.0.0.zip', size: data.length, sha256: crypto.createHash('sha256').update(data).digest('hex') };
+  const server = await updateServer({ '/update.json': signedManifest(privateKey, '2.0.0', { 'darwin-arm64': entry }), '/Beacon-2.0.0.zip': data });
+  const updater = makeUpdater(server.url, publicKey);
+  const state = await updater.check();
+  server.close();
+  assert.equal(state.status, 'ready');
+  assert.ok(fs.readFileSync(state.file).equals(data));
+});
+
+test('updates signed by the wrong key are refused', async () => {
+  const { publicKey } = updateKeys();
+  const attacker = updateKeys();
+  const server = await updateServer({ '/update.json': signedManifest(attacker.privateKey, '2.0.0', {}) });
+  const state = await makeUpdater(server.url, publicKey).check();
+  server.close();
+  assert.equal(state.status, 'error');
+  assert.match(state.error, /signature/);
+});
+
+test('an altered manifest is refused', () => {
+  const { privateKey, publicKey } = updateKeys();
+  const good = JSON.parse(signedManifest(privateKey, '2.0.0', {}));
+  good.payload = Buffer.from(JSON.stringify({ version: '9.9.9', files: {} })).toString('base64');
+  assert.throws(() => readManifest(JSON.stringify(good), publicKey), /signature/);
+});
+
+test('a download that does not match its signed hash is discarded', async () => {
+  const { privateKey, publicKey } = updateKeys();
+  const data = crypto.randomBytes(1000);
+  const tampered = Buffer.from(data);
+  tampered[0] ^= 1;
+  const entry = { name: 'Beacon-2.0.0.zip', size: data.length, sha256: crypto.createHash('sha256').update(data).digest('hex') };
+  const server = await updateServer({ '/update.json': signedManifest(privateKey, '2.0.0', { 'darwin-arm64': entry }), '/Beacon-2.0.0.zip': tampered });
+  const updater = makeUpdater(server.url, publicKey);
+  const state = await updater.check();
+  server.close();
+  assert.equal(state.status, 'error');
+  assert.deepEqual(fs.readdirSync(updater.dir), []);
+});
+
+test('older and equal versions are not installed', async () => {
+  const { privateKey, publicKey } = updateKeys();
+  const entry = { name: 'old.zip', size: 1, sha256: 'a'.repeat(64) };
+  for (const version of ['0.9.0', '1.0.0']) {
+    const server = await updateServer({ '/update.json': signedManifest(privateKey, version, { 'darwin-arm64': entry }) });
+    const state = await makeUpdater(server.url, publicKey).check();
+    server.close();
+    assert.equal(state.status, 'current', version);
+  }
+});
+
+test('signed file names cannot leave the update folder', async () => {
+  const { privateKey, publicKey } = updateKeys();
+  const entry = { name: '../../evil.app', size: 10, sha256: 'a'.repeat(64) };
+  const server = await updateServer({ '/update.json': signedManifest(privateKey, '2.0.0', { 'darwin-arm64': entry }) });
+  const state = await makeUpdater(server.url, publicKey).check();
+  server.close();
+  assert.equal(state.status, 'error');
+});
+
+test('having no update published counts as up to date', async () => {
+  const { publicKey } = updateKeys();
+  const server = await updateServer({});
+  const state = await makeUpdater(server.url, publicKey).check();
+  server.close();
+  assert.equal(state.status, 'current');
+});

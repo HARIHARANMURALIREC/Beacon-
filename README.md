@@ -14,6 +14,26 @@ Serverless encrypted chat and file transfer for the office network.
 Set `DOWNLOAD_BASE` when building the site if the installers are hosted elsewhere,
 for example `DOWNLOAD_BASE=https://example.com/releases npm run site`.
 
+## Tests
+
+    npm test
+    BEACON_UDP_PORT=34250 SMOKE_ROLE=receiver ... electron test/smoke.js
+
+Always set `BEACON_UDP_PORT` when running the interface test. Without it, its fake users
+broadcast on the real discovery port and appear on colleagues' computers.
+
+## Releasing an update
+
+Installed copies check the latest GitHub release for a signed `update.json`.
+
+    npm run dist:mac && npm run dist:win
+    npm run sign-update
+
+Upload `dist/update.json`, the two `*-mac.zip` files, the `.dmg` files and the `.exe` to a new
+GitHub release. The signing key is at `~/.beacon/update-signing-key.pem`. Keep a safe backup and
+never commit it: without it, installed copies can't be updated, and anyone who has it can
+update every installed copy.
+
 ## Network requirements
 
 - UDP 24250 for finding colleagues (broadcast on the local subnet)
@@ -24,7 +44,7 @@ for example `DOWNLOAD_BASE=https://example.com/releases npm run site`.
 ## Known limits
 
 - Installers are not signed, so macOS and Windows show security warnings.
-- No automatic updates. Each new version must be installed manually.
+- Versions before 0.3.0 can't update themselves and need one manual install.
 - Anyone on the network who runs the app can appear and send messages. Display
   names are self-declared, so use the device ID to confirm identity.
 - Files and folders download automatically by default, from anyone on the network.

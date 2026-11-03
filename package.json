@@ -1,7 +1,7 @@
 {
   "name": "beacon",
   "productName": "Beacon",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Serverless encrypted chat and file transfer for your network",
   "main": "src/main.js",
   "private": true,
@@ -12,7 +12,8 @@
     "icon": "node scripts/make-icon.js",
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
-    "site": "node scripts/build-site.js"
+    "site": "node scripts/build-site.js",
+    "sign-update": "node scripts/sign-update.js"
   },
   "build": {
     "appId": "internal.beacon.messenger",
@@ -33,6 +34,13 @@
             "arm64",
             "x64"
           ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         }
       ],
       "category": "public.app-category.business",
@@ -40,7 +48,8 @@
       "extendInfo": {
         "NSLocalNetworkUsageDescription": "Beacon uses the local network to find colleagues and exchange messages and files."
       },
-      "hardenedRuntime": false
+      "hardenedRuntime": false,
+      "artifactName": "Beacon-${version}-${arch}-mac.${ext}"
     },
     "dmg": {
       "artifactName": "Beacon-${version}-${arch}.dmg",
@@ -69,7 +78,8 @@
       "en",
       "en-US",
       "en-GB"
-    ]
+    ],
+    "publish": null
   },
   "devDependencies": {
     "electron": "^45.2.1",

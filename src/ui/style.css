@@ -452,6 +452,10 @@ dialog label.check-row { flex-direction: row; align-items: center; gap: 8px; }
 code { font-size: 11px; overflow-wrap: anywhere; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; }
 
+.update-banner { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--accent); border-radius: 12px; background: var(--accent-soft); animation: rise 0.25s ease-out; }
+.update-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.update-text strong { font-size: 13px; font-weight: 650; }
+.update-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .list-tools { display: flex; gap: 6px; }
 .list-tools select { flex: 1; min-width: 0; }
 select { background: var(--surface); color: inherit; font: inherit; font-size: 12px; border: 1px solid var(--line); border-radius: 8px; padding: 5px 6px; }
