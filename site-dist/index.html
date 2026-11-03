@@ -24,10 +24,10 @@
         <h1>Chat and send files across your office network.</h1>
         <p class="lead">Beacon finds colleagues on the same network automatically. No accounts to create and no central server to run.</p>
         <div class="cta">
-          <a id="primary-download" class="button primary" href="https://github.com/HARIHARANMURALIREC/Beacon-/releases/download/v0.1.0/Beacon-Setup-0.1.0.exe">Download Beacon</a>
+          <a id="primary-download" class="button primary" href="https://github.com/HARIHARANMURALIREC/Beacon-/releases/download/v0.2.0/Beacon-Setup-0.2.0.exe">Download Beacon</a>
           <a class="button ghost" href="#download">All downloads</a>
         </div>
-        <p id="primary-note" class="fineprint">Version 0.1.0 for Windows and macOS</p>
+        <p id="primary-note" class="fineprint">Version 0.2.0 for Windows and macOS</p>
       </div>
 
       <div class="demo" aria-hidden="true">
@@ -66,16 +66,16 @@
           <p>Anyone running Beacon on your network shows up in your list. Other subnets can be added in Settings.</p>
         </article>
         <article>
-          <h3>Files go straight across</h3>
-          <p>Files move directly between the two computers. The recipient accepts each one, and its checksum is verified on arrival.</p>
+          <h3>Files and folders go straight across</h3>
+          <p>Drag them in and they download automatically on the other computer, with checksums verified on arrival. You can also paste screenshots right into a chat.</p>
         </article>
         <article>
           <h3>Encrypted in transit</h3>
           <p>Messages and files are encrypted between devices, and each device has its own ID so you can check who you are talking to.</p>
         </article>
         <article>
-          <h3>Messages can wait</h3>
-          <p>Messages to someone offline are queued and sent when they return, as long as your app is still running.</p>
+          <h3>Chat your way</h3>
+          <p>Create groups, quote replies, search your history and see when messages are read. Seal or password-lock private messages, and set an away reply.</p>
         </article>
       </div>
     </section>
@@ -83,15 +83,15 @@
     <section id="download" class="downloads">
       <h2>Download</h2>
       <div class="download-list">
-        <a class="download" data-file="windows" href="https://github.com/HARIHARANMURALIREC/Beacon-/releases/download/v0.1.0/Beacon-Setup-0.1.0.exe">
+        <a class="download" data-file="windows" href="https://github.com/HARIHARANMURALIREC/Beacon-/releases/download/v0.2.0/Beacon-Setup-0.2.0.exe">
           <span><b>Windows</b><small>64-bit, Windows 10 or later</small></span>
           <span class="size">.exe · 108 MB</span>
         </a>
-        <a class="download" data-file="mac-arm" href="https://github.com/HARIHARANMURALIREC/Beacon-/releases/download/v0.1.0/Beacon-0.1.0-arm64.dmg">
+        <a class="download" data-file="mac-arm" href="https://github.com/HARIHARANMURALIREC/Beacon-/releases/download/v0.2.0/Beacon-0.2.0-arm64.dmg">
           <span><b>Mac with Apple silicon</b><small>M1 or later, macOS 13 or later</small></span>
           <span class="size">.dmg · 102 MB</span>
         </a>
-        <a class="download" data-file="mac-intel" href="https://github.com/HARIHARANMURALIREC/Beacon-/releases/download/v0.1.0/Beacon-0.1.0-x64.dmg">
+        <a class="download" data-file="mac-intel" href="https://github.com/HARIHARANMURALIREC/Beacon-/releases/download/v0.2.0/Beacon-0.2.0-x64.dmg">
           <span><b>Mac with Intel</b><small>macOS 13 or later</small></span>
           <span class="size">.dmg · 108 MB</span>
         </a>
@@ -100,9 +100,9 @@
       <details>
         <summary>SHA-256 checksums</summary>
         <dl class="checksums">
-          <dt>Beacon-Setup-0.1.0.exe</dt><dd>a9e18bee6fb4991967ca784b3d81a7c954e22c3253f0b176879030f302bd2a2a</dd>
-          <dt>Beacon-0.1.0-arm64.dmg</dt><dd>a7d785b01d3d4d38a164fdd5ab1ffceadfe23ec779ed3785d7e1674f70189ce0</dd>
-          <dt>Beacon-0.1.0-x64.dmg</dt><dd>528a96a88efe0a9bc4690e63a7dc04e8fa6fa30cbcf9d19e08d37980399005a2</dd>
+          <dt>Beacon-Setup-0.2.0.exe</dt><dd>05f98fba6b7206c91cc5c3f614e46b2f57491504198fb8f2772df6e8e43cf554</dd>
+          <dt>Beacon-0.2.0-arm64.dmg</dt><dd>98b60f71d81cb92168a4adf5cff7f6d2d298332397c5901d4893186e8b7f025c</dd>
+          <dt>Beacon-0.2.0-x64.dmg</dt><dd>347bc3876765a53df738f7cd803bb73f99f9115fd679e503b7024433d062f8c0</dd>
         </dl>
       </details>
     </section>
@@ -135,7 +135,8 @@
       <ul>
         <li><b>Early release.</b> The encryption hasn't been independently reviewed, so don't rely on Beacon for highly confidential data yet.</li>
         <li><b>Identity.</b> Anyone on your network running Beacon can join and pick any name. Check the device ID before sharing anything sensitive.</li>
-        <li><b>Saved data.</b> Chat history is stored unencrypted on each computer.</li>
+        <li><b>Automatic downloads.</b> Files and folders sent to you save automatically and are never opened for you. You can turn this off in Settings, and should be careful opening files you weren't expecting.</li>
+        <li><b>Saved data.</b> Chat history is stored unencrypted on each computer, except password-locked messages.</li>
         <li><b>Network access.</b> Beacon needs UDP port 24250 and TCP port 24251. Guest Wi-Fi often blocks this kind of traffic.</li>
         <li><b>Updates.</b> There are no automatic updates yet, so new versions are installed by hand.</li>
       </ul>
@@ -143,7 +144,7 @@
   </main>
 
   <footer class="footer">
-    <span class="logo small"><span class="mark" aria-hidden="true"><i></i></span>Beacon 0.1.0</span>
+    <span class="logo small"><span class="mark" aria-hidden="true"><i></i></span>Beacon 0.2.0</span>
   </footer>
   <script src="main.js"></script>
 </body>

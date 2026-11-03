@@ -27,10 +27,14 @@ for example `DOWNLOAD_BASE=https://example.com/releases npm run site`.
 - No automatic updates. Each new version must be installed manually.
 - Anyone on the network who runs the app can appear and send messages. Display
   names are self-declared, so use the device ID to confirm identity.
-- Traffic is encrypted, but chat history is stored unencrypted in the app's data folder.
+- Files and folders download automatically by default, from anyone on the network.
+  They are never opened automatically. Turn this off in Settings to accept each one.
+- Traffic is encrypted, but chat history is stored unencrypted in the app's data
+  folder, except password-locked messages.
 - A queued message is delivered only while both people have the app running.
 - Everyone messages go only to people online when they are sent.
-- Single files only: no folders, and interrupted transfers restart from the beginning.
+- Files and folders go to one person at a time, not to groups or Everyone.
+- Interrupted transfers restart from the beginning.
 
 ## Website
 
@@ -39,4 +43,4 @@ installers. Vercel reads `vercel.json` and needs no other settings.
 
 After a new version, upload the installers to a GitHub release, then rebuild the site and commit it:
 
-    DOWNLOAD_BASE=https://github.com/HARIHARANMURALIREC/Beacon-/releases/download/v0.1.0 npm run site
+    DOWNLOAD_BASE=https://github.com/HARIHARANMURALIREC/Beacon-/releases/download/v0.2.0 npm run site

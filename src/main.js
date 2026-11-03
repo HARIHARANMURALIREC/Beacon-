@@ -22,6 +22,13 @@ function loadSettings() {
     downloadDir: path.join(app.getPath('downloads'), 'Beacon'),
     targets: [],
     openAtLogin: false,
+    group: '',
+    away: false,
+    awayText: 'I am away from my desk and will reply when I am back.',
+    autoAccept: true,
+    readReceipts: true,
+    arrival: 'notify',
+    sort: 'name',
   };
   try {
     return { ...defaults, ...JSON.parse(fs.readFileSync(settingsFile(), 'utf8')) };
@@ -47,14 +54,35 @@ function showWindow() {
   mainWindow.focus();
 }
 
+function notificationText(message) {
+  if (message.kind === 'file') return `Sent you ${message.file.folder ? 'a folder' : 'a file'}: ${message.file.name}`;
+  if (message.kind === 'image') return 'Sent an image';
+  if (message.locked) return 'Sent a locked message';
+  if (message.sealed) return 'Sent a sealed message';
+  return message.text.slice(0, 160);
+}
+
+function readActive() {
+  if (activeConversation && mainWindow && mainWindow.isFocused()) engine.markRead(activeConversation);
+}
+
 function onIncoming(message) {
   const viewing = mainWindow && mainWindow.isFocused() && activeConversation === message.conv;
-  if (viewing) return;
+  if (viewing) {
+    readActive();
+    return;
+  }
   unread[message.conv] = (unread[message.conv] || 0) + 1;
   updateBadge();
   send('unread', unread);
+  if (settings.arrival === 'quiet') return;
+  if (settings.arrival === 'popup') {
+    showWindow();
+    send('open-conversation', message.conv);
+    return;
+  }
   if (!Notification.isSupported()) return;
-  const body = message.kind === 'file' ? `Wants to send you ${message.file.name}` : message.text.slice(0, 160);
+  const body = notificationText(message);
   const notification = new Notification({ title: message.fromName, body });
   notification.on('click', () => {
     showWindow();
@@ -82,6 +110,7 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'ui', 'index.html'));
   // Returning to an open chat counts as reading it.
   mainWindow.on('focus', () => {
+    readActive();
     if (activeConversation && unread[activeConversation]) {
       delete unread[activeConversation];
       updateBadge();
@@ -122,15 +151,27 @@ function registerIpc() {
     settings: publicSettings(),
     peers: engine.listPeers(),
     messages: engine.store.data.messages,
+    groups: engine.store.data.groups,
     unread,
   }));
-  ipcMain.handle('send-text', (_event, conv, text) => {
-    engine.sendText(conv, text);
+  ipcMain.handle('send-text', (_event, conv, text, options) => {
+    engine.sendText(conv, text, options);
   });
-  ipcMain.handle('send-file', async (_event, conv) => {
-    const result = await dialog.showOpenDialog(mainWindow, { properties: ['openFile', 'multiSelections'] });
-    if (!result.canceled) for (const filePath of result.filePaths) engine.offerFile(conv, filePath);
+  ipcMain.handle('pick-and-send', async (_event, conv, type) => {
+    const properties = type === 'folder' ? ['openDirectory', 'multiSelections'] : ['openFile', 'multiSelections'];
+    const result = await dialog.showOpenDialog(mainWindow, { properties });
+    if (!result.canceled) for (const filePath of result.filePaths) await engine.offerFile(conv, filePath);
   });
+  ipcMain.handle('send-paths', async (_event, conv, paths) => {
+    for (const filePath of paths) await engine.offerFile(conv, filePath);
+  });
+  ipcMain.handle('send-image', (_event, conv, data) => {
+    engine.sendImage(conv, Buffer.from(data));
+  });
+  ipcMain.handle('image-data', (_event, conv, id) => engine.imageData(conv, id));
+  ipcMain.handle('create-group', (_event, name, members) => engine.createGroup(name, members).id);
+  ipcMain.handle('open-sealed', (_event, conv, id) => engine.openSealed(conv, id));
+  ipcMain.handle('unlock', (_event, conv, id, password) => engine.unlockMessage(conv, id, password));
   ipcMain.handle('accept-file', async (_event, conv, id) => {
     await engine.acceptFile(conv, id);
   });
@@ -140,11 +181,13 @@ function registerIpc() {
   ipcMain.handle('show-file', (_event, conv, id) => {
     const message = engine.store.findMessage(conv, id);
     if (message && message.file && message.file.savedPath) shell.showItemInFolder(message.file.savedPath);
+    if (message && message.image) shell.showItemInFolder(message.image.path);
   });
   ipcMain.handle('set-active', (_event, conv) => {
     activeConversation = conv;
     delete unread[conv];
     updateBadge();
+    readActive();
     return unread;
   });
   ipcMain.handle('choose-folder', async () => {
@@ -161,12 +204,21 @@ function registerIpc() {
       downloadDir: String(next.downloadDir || settings.downloadDir),
       targets,
       openAtLogin: Boolean(next.openAtLogin),
+      group: String(next.group || '').trim().slice(0, 32),
+      away: Boolean(next.away),
+      awayText: String(next.awayText || '').slice(0, 1000),
+      autoAccept: Boolean(next.autoAccept),
+      readReceipts: Boolean(next.readReceipts),
+      arrival: ['notify', 'popup', 'quiet'].includes(next.arrival) ? next.arrival : 'notify',
+      sort: ['name', 'group', 'ip'].includes(next.sort) ? next.sort : settings.sort,
     };
     fs.writeFileSync(settingsFile(), JSON.stringify(settings, null, 2));
     if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: settings.openAtLogin });
     engine.name = settings.name;
     engine.downloadDir = settings.downloadDir;
     engine.targets = targets;
+    engine.configure(settings);
+    engine.flushOutbox();
     engine.announce('hello');
     return publicSettings();
   });
@@ -179,8 +231,14 @@ async function start() {
     name: settings.name,
     downloadDir: settings.downloadDir,
     targets: settings.targets,
+    group: settings.group,
+    away: settings.away,
+    awayText: settings.awayText,
+    autoAccept: settings.autoAccept,
+    readReceipts: settings.readReceipts,
   });
   engine.on('peers', () => send('peers', engine.listPeers()));
+  engine.on('groups', () => send('groups', engine.store.data.groups));
   engine.on('message', (message) => {
     send('message', message);
     if (message.dir === 'in') onIncoming(message);

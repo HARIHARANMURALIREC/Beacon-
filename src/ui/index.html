@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:">
   <title>Beacon</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -19,7 +19,16 @@
     <div class="search-box">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
       <label class="visually-hidden" for="search">Search people</label>
-      <input id="search" type="search" placeholder="Search people" autocomplete="off">
+      <input id="search" type="search" placeholder="Search people and messages" autocomplete="off">
+    </div>
+    <div class="list-tools">
+      <label class="visually-hidden" for="sort">Sort people</label>
+      <select id="sort">
+        <option value="name">Sort by name</option>
+        <option value="group">Sort by group</option>
+        <option value="ip">Sort by IP address</option>
+      </select>
+      <button id="new-group" class="ghost small" type="button">New group</button>
     </div>
     <nav id="people" aria-label="People"></nav>
     <footer class="me">
@@ -49,9 +58,25 @@
       <p id="warning" class="warning" role="alert" hidden></p>
       <div id="messages" class="messages" role="log" aria-live="polite"></div>
       <p id="error" class="error" role="alert" hidden></p>
+      <div id="reply-bar" class="reply-bar" hidden>
+        <span class="quote"><b id="reply-name"></b><span id="reply-text"></span></span>
+        <button id="reply-cancel" class="icon-button" type="button" aria-label="Cancel reply" title="Cancel reply">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div id="attach-menu" class="menu" hidden>
+        <button id="attach-files" type="button">Send files</button>
+        <button id="attach-folder" type="button">Send a folder</button>
+      </div>
       <form id="composer" class="composer">
-        <button id="attach" class="icon-button" type="button" aria-label="Send file" title="Send file">
+        <button id="attach" class="icon-button" type="button" aria-label="Send files or a folder" title="Send files or a folder">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4L14.5 7"/></svg>
+        </button>
+        <button id="seal" class="icon-button" type="button" aria-pressed="false" aria-label="Seal message" title="Seal: they click to open, and you're told when they do">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>
+        </button>
+        <button id="lock" class="icon-button" type="button" aria-pressed="false" aria-label="Lock message with a password" title="Lock with a password">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3"/></svg>
         </button>
         <label class="visually-hidden" for="text">Message</label>
         <textarea id="text" rows="1" placeholder="Write a message"></textarea>
@@ -60,13 +85,70 @@
         </button>
       </form>
     </div>
+    <div id="drop-overlay" class="drop-overlay" hidden><span>Drop to send</span></div>
   </main>
+
+  <dialog id="group-dialog">
+    <form id="group-form" method="dialog">
+      <h2>New group</h2>
+      <label>Group name
+        <input id="group-name" maxlength="64" required>
+      </label>
+      <fieldset>
+        <legend>People</legend>
+        <div id="group-people" class="people-picker"></div>
+      </fieldset>
+      <p id="group-error" class="error" role="alert" hidden></p>
+      <div class="actions">
+        <button id="cancel-group" class="ghost" type="button">Cancel</button>
+        <button class="primary" type="submit">Create group</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="password-dialog">
+    <form id="password-form" method="dialog">
+      <h2 id="password-title"></h2>
+      <label>Password
+        <input id="password-input" type="password" required autocomplete="off">
+      </label>
+      <p id="password-hint" class="muted hint"></p>
+      <p id="password-error" class="error" role="alert" hidden></p>
+      <div class="actions">
+        <button id="cancel-password" class="ghost" type="button">Cancel</button>
+        <button id="password-confirm" class="primary" type="submit"></button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="settings">
     <form id="settings-form" method="dialog">
       <h2>Settings</h2>
       <label>Display name
         <input id="set-name" maxlength="64" required>
+      </label>
+      <label>Group or department
+        <input id="set-group" maxlength="32" placeholder="For example, Design">
+      </label>
+      <label class="check-row">
+        <input id="set-away" type="checkbox"> I'm away
+      </label>
+      <label>Away message
+        <textarea id="set-away-text" rows="2" maxlength="1000"></textarea>
+        <span class="muted hint">Sent once to each person who messages you while you're away.</span>
+      </label>
+      <label>When a message arrives
+        <select id="set-arrival">
+          <option value="notify">Show a notification</option>
+          <option value="popup">Bring Beacon to the front</option>
+          <option value="quiet">Stay quiet, just count it as unread</option>
+        </select>
+      </label>
+      <label class="check-row">
+        <input id="set-auto" type="checkbox"> Download files and folders automatically
+      </label>
+      <label class="check-row">
+        <input id="set-receipts" type="checkbox"> Let people see when I've read their messages
       </label>
       <label>Save received files to
         <span class="row">

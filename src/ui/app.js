@@ -7,8 +7,13 @@ const $ = (id) => document.getElementById(id);
 let settings = {};
 let peers = [];
 let messages = {};
+let groups = {};
 let unread = {};
 let active = null;
+let replyTo = null;
+let composeMode = null;
+let composePassword = null;
+const opened = new Map();
 
 const rows = new Map();
 const transfers = new Map();
@@ -35,6 +40,9 @@ function icon(pathData) {
 
 const ICON_FILE = 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5';
 const ICON_CHECK = 'm5 12.5 4.5 4.5L19 7.5';
+const ICON_FOLDER = 'M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z';
+const ICON_SEAL = 'M4 6h16v12H4zM4 7l8 6 8-6';
+const ICON_LOCK = 'M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3';
 const ICON_ALERT = 'M12 8v5M12 16.5v.5M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z';
 
 function initials(name) {
@@ -50,9 +58,8 @@ function hueFor(id) {
 }
 
 function setAvatar(node, id, name) {
-  node.textContent = id === EVERYONE ? '' : initials(name);
-  node.classList.toggle('group', id === EVERYONE);
-  if (id === EVERYONE) node.textContent = 'All';
+  node.textContent = id === EVERYONE ? 'All' : initials(name);
+  node.classList.toggle('group', id === EVERYONE || isGroup(id));
   node.style.setProperty('--hue', hueFor(id));
 }
 
@@ -60,6 +67,15 @@ function avatar(id, name) {
   const node = el('span', 'avatar');
   setAvatar(node, id, name);
   return node;
+}
+
+function isGroup(id) {
+  return String(id).startsWith('g:');
+}
+
+function conversationName(id) {
+  if (id === EVERYONE) return 'Everyone';
+  return isGroup(id) ? (groups[id] || {}).name || 'Group' : nameOf(id);
 }
 
 function nameOf(id) {
@@ -117,7 +133,9 @@ function preview(id) {
   const list = messages[id];
   const last = list && list[list.length - 1];
   if (!last) return null;
-  const body = last.kind === 'file' ? last.file.name : last.text.split('\n')[0];
+  let body = last.kind === 'file' ? last.file.name : last.kind === 'image' ? 'Image' : (last.text || '').split('\n')[0];
+  if (last.locked) body = 'Locked message';
+  else if (last.sealed && last.dir === 'in' && !last.opened) body = 'Sealed message';
   return last.dir === 'out' ? `You: ${body}` : body;
 }
 
@@ -131,16 +149,76 @@ function renderPeople() {
   if (!query || 'everyone'.includes(query)) {
     list.append(personButton(EVERYONE, 'Everyone', preview(EVERYONE) || `${online} online`, online > 0));
   }
-  const sorted = peers
-    .filter((peer) => peer.name.toLowerCase().includes(query))
-    .sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
-  for (const peer of sorted) {
-    list.append(personButton(peer.id, peer.name, preview(peer.id) || (peer.online ? 'Online' : 'Offline'), peer.online));
+  for (const group of Object.values(groups)) {
+    if (!group.name.toLowerCase().includes(query)) continue;
+    const count = `${group.members.length} people`;
+    list.append(personButton(group.id, group.name, preview(group.id) || count, group.members.some((id) => peers.find((p) => p.id === id)?.online)));
   }
+  const matching = peers.filter((peer) => peer.name.toLowerCase().includes(query));
+  let heading = null;
+  for (const peer of sortPeers(matching)) {
+    if (settings.sort === 'group' && (peer.group || 'No group') !== heading) {
+      heading = peer.group || 'No group';
+      list.append(el('p', 'list-heading', heading));
+    }
+    const status = peer.away ? 'Away' : peer.online ? 'Online' : 'Offline';
+    const detail = settings.sort === 'ip' && peer.ip ? peer.ip : preview(peer.id) || status;
+    const button = personButton(peer.id, peer.name, detail, peer.online);
+    if (peer.away) button.querySelector('.dot').classList.add('away');
+    list.append(button);
+  }
+  if (query.length >= 2) renderSearchResults(list, query);
   if (!peers.length) {
     list.append(el('p', 'section-note', 'No one found yet. Ask a colleague on this network to open Beacon, or check Settings if they are on another subnet.'));
   }
   list.scrollTop = scroll;
+}
+
+function ipValue(ip) {
+  return ip ? ip.split('.').reduce((total, part) => total * 256 + Number(part), 0) : Infinity;
+}
+
+function sortPeers(list) {
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  const online = (a, b) => Number(b.online) - Number(a.online);
+  if (settings.sort === 'group') {
+    return [...list].sort((a, b) => (a.group || '\uffff').localeCompare(b.group || '\uffff') || online(a, b) || byName(a, b));
+  }
+  if (settings.sort === 'ip') return [...list].sort((a, b) => ipValue(a.ip) - ipValue(b.ip) || byName(a, b));
+  return [...list].sort((a, b) => online(a, b) || byName(a, b));
+}
+
+// Unopened sealed and locked messages stay out of search, so it can't reveal them.
+function searchableText(message) {
+  if (message.kind === 'file') return message.file.name;
+  if (message.kind !== 'text' || message.locked) return '';
+  if (message.sealed && message.dir === 'in' && !message.opened) return '';
+  return message.text;
+}
+
+function renderSearchResults(list, query) {
+  const results = [];
+  for (const [conv, items] of Object.entries(messages)) {
+    for (const message of items) {
+      if (searchableText(message).toLowerCase().includes(query)) results.push({ conv, message });
+    }
+  }
+  results.sort((a, b) => b.message.ts - a.message.ts);
+  list.append(el('p', 'list-heading', results.length ? 'Messages' : 'No messages found'));
+  for (const { conv, message } of results.slice(0, 50)) {
+    const row = el('button', 'result');
+    row.type = 'button';
+    row.append(el('b', '', `${conversationName(conv)} · ${formatDay(message.ts)}`), el('span', '', searchableText(message)));
+    row.addEventListener('click', async () => {
+      await openConversation(conv);
+      const target = rows.get(message.id);
+      if (target) {
+        target.row.scrollIntoView({ block: 'center' });
+        target.row.classList.add('flash');
+      }
+    });
+    list.append(row);
+  }
 }
 
 function personButton(id, name, subtitle, online) {
@@ -159,9 +237,17 @@ function personButton(id, name, subtitle, online) {
 
 function renderHeader() {
   const peer = peers.find((item) => item.id === active);
-  $('attach').disabled = active === EVERYONE;
-  $('attach').title = active === EVERYONE ? 'Files can only be sent to one person' : 'Send file';
-  setAvatar($('chat-avatar'), active, active === EVERYONE ? 'Everyone' : nameOf(active));
+  const oneToOne = active !== EVERYONE && !isGroup(active);
+  $('attach').disabled = !oneToOne;
+  $('attach').title = oneToOne ? 'Send files or a folder' : 'Files and folders can only be sent to one person';
+  setAvatar($('chat-avatar'), active, conversationName(active));
+  if (isGroup(active)) {
+    const group = groups[active] || { members: [] };
+    $('chat-title').textContent = group.name;
+    $('chat-detail').textContent = group.members.map(nameOf).join(', ');
+    $('warning').hidden = true;
+    return;
+  }
   if (active === EVERYONE) {
     $('chat-title').textContent = 'Everyone';
     $('chat-detail').textContent = 'Sent to everyone online right now. People who are offline will not receive it.';
@@ -169,7 +255,7 @@ function renderHeader() {
     return;
   }
   $('chat-title').textContent = peer ? peer.name : 'Unknown';
-  const place = peer && peer.online ? `Online at ${peer.ip}` : 'Offline: messages send when they return and you are both running the app';
+  const place = peer && peer.away ? `Away at ${peer.ip}` : peer && peer.online ? `Online at ${peer.ip}` : 'Offline: messages send when they return and you are both running the app';
   $('chat-detail').textContent = `${place} · ID ${fingerprint(active)}`;
   const duplicate = peer && peer.duplicateName;
   $('warning').hidden = !duplicate;
@@ -180,11 +266,15 @@ function renderHeader() {
 
 function statusText(message) {
   const time = formatClock(message.ts);
-  if (message.dir === 'in') return message.conv === EVERYONE ? `${message.fromName} · ${time}` : time;
+  if (message.dir === 'in') return message.conv === EVERYONE || isGroup(message.conv) ? `${message.fromName} · ${time}` : time;
+  const readVerb = message.sealed ? 'Opened' : 'Read';
+  const readers = (message.readBy || []).length;
   if (message.recipients) {
-    const delivered = message.recipients.length - (message.pending || []).length;
-    return `${time} · Delivered to ${delivered} of ${message.recipients.length}`;
+    const total = message.recipients.length;
+    if (readers) return `${time} · ${readVerb} by ${readers} of ${total}`;
+    return `${time} · Delivered to ${total - (message.pending || []).length} of ${total}`;
   }
+  if (readers) return `${time} · ${readVerb}`;
   return `${time} · ${message.status === 'delivered' ? 'Delivered' : 'Waiting to send'}`;
 }
 
@@ -215,12 +305,17 @@ function button(className, label, handler) {
   return node;
 }
 
+function fileSummary(file) {
+  if (!file.folder) return formatSize(file.size);
+  return `${file.count === 1 ? '1 file' : `${file.count} files`}, ${formatSize(file.size)}`;
+}
+
 function drawMoving(card, message) {
   const { file } = message;
   const sender = message.from;
   const receiver = message.dir === 'in' ? settings.id : message.conv;
   const verb = message.dir === 'in' ? 'Receiving' : 'Sending';
-  card.append(fileHead(message, fileIcon(ICON_FILE), `${formatSize(file.size)} · ${verb}`));
+  card.append(fileHead(message, fileIcon(file.folder ? ICON_FOLDER : ICON_FILE), `${fileSummary(file)} · ${verb}`));
   const beam = el('div', 'beam');
   const end = avatar(receiver, nameOf(receiver));
   end.classList.add('receiving-end');
@@ -268,7 +363,7 @@ function drawCard(card, message, phase, live) {
   if (phase === 'done') {
     const check = el('span', 'check');
     check.append(icon(ICON_CHECK));
-    card.append(fileHead(message, check, `${formatSize(file.size)} · ${message.dir === 'in' ? 'Saved' : 'Sent'}`));
+    card.append(fileHead(message, check, `${fileSummary(file)} · ${message.dir === 'in' ? 'Saved' : 'Sent'}`));
     if (live) card.classList.add('just-finished');
     if (message.dir === 'in') {
       const actions = el('div', 'file-actions');
@@ -283,12 +378,12 @@ function drawCard(card, message, phase, live) {
     card.append(fileHead(message, fileIcon(ICON_ALERT), `Failed: ${file.error || 'transfer did not finish'}`));
   } else {
     const labels = {
-      offered: message.dir === 'in' ? 'Waiting for you to accept' : 'Waiting for them to accept',
+      offered: message.dir === 'in' ? (settings.autoAccept ? 'Waiting to download' : 'Waiting for you to accept') : 'Waiting to send',
       declined: 'Declined',
     };
-    card.append(fileHead(message, fileIcon(ICON_FILE), `${formatSize(file.size)} · ${labels[phase] || phase}`));
+    card.append(fileHead(message, fileIcon(file.folder ? ICON_FOLDER : ICON_FILE), `${fileSummary(file)} · ${labels[phase] || phase}`));
   }
-  if (message.dir === 'in' && (phase === 'offered' || phase === 'failed')) {
+  if (message.dir === 'in' && ((phase === 'offered' && !settings.autoAccept) || phase === 'failed')) {
     const actions = el('div', 'file-actions');
     actions.append(
       button('primary', phase === 'failed' ? 'Try again' : 'Accept', () => act(window.messenger.acceptFile(message.conv, message.id))),
@@ -333,20 +428,216 @@ function syncCard(card, message, live) {
 
 // ---- Message list ----
 
+function sealedCard(message, iconPath, title, detail, actionLabel, action) {
+  const card = el('div', 'sealed-card');
+  const text = el('div', 'sealed-text');
+  text.append(el('b', '', title), el('span', 'muted', detail));
+  card.append(icon(iconPath), text, button('primary small', actionLabel, action));
+  return card;
+}
+
+function textBubble(message, text) {
+  const bubble = el('div', 'bubble');
+  if (message.auto) bubble.append(el('span', 'auto-label', 'Automatic reply'));
+  if (message.reply) {
+    const quote = el('span', 'quote');
+    quote.append(el('b', '', message.reply.name), el('span', '', message.reply.text));
+    bubble.append(quote);
+  }
+  bubble.append(document.createTextNode(text));
+  return bubble;
+}
+
+function imageBody(message) {
+  const box = el('div', 'image-message');
+  const image = el('img');
+  image.alt = message.dir === 'in' ? `Image from ${message.fromName}` : 'Image you sent';
+  box.append(image);
+  window.messenger.imageData(message.conv, message.id).then((data) => {
+    image.src = data;
+  }).catch(() => box.replaceChildren(el('span', 'muted', 'Image is no longer available')));
+  return box;
+}
+
+function messageBody(message) {
+  if (message.kind === 'image') return imageBody(message);
+  if (message.locked) {
+    if (opened.has(message.id)) return textBubble(message, opened.get(message.id));
+    return sealedCard(message, ICON_LOCK, 'Locked message', 'Needs a password', 'Unlock', () => unlockFlow(message));
+  }
+  if (message.sealed && message.dir === 'in' && !message.opened) {
+    const open = () => act(window.messenger.openSealed(message.conv, message.id));
+    return sealedCard(message, ICON_SEAL, 'Sealed message', 'The sender is told when you open it', 'Open', open);
+  }
+  return textBubble(message, message.text);
+}
+
+function canReply(message) {
+  if (message.kind !== 'text' || message.auto) return false;
+  if (message.locked) return opened.has(message.id);
+  return !message.sealed || message.dir === 'out' || Boolean(message.opened);
+}
+
+function rowActions(message) {
+  const actions = el('div', 'message-actions');
+  if (canReply(message)) {
+    actions.append(button('', 'Reply', () => {
+      const text = message.locked ? opened.get(message.id) : message.text;
+      replyTo = { id: message.id, name: message.dir === 'out' ? settings.name : message.fromName, text: text.slice(0, 200) };
+      renderReplyBar();
+      $('text').focus();
+    }));
+  }
+  if (message.kind === 'image') {
+    actions.append(button('', 'Show in folder', () => act(window.messenger.showFile(message.conv, message.id))));
+  }
+  return actions;
+}
+
+function renderReplyBar() {
+  $('reply-bar').hidden = !replyTo;
+  if (replyTo) {
+    $('reply-name').textContent = replyTo.name;
+    $('reply-text').textContent = replyTo.text;
+  }
+}
+
+function rowSignature(message) {
+  return `${Boolean(message.opened)}:${opened.has(message.id)}`;
+}
+
 function buildRow(message, fresh) {
   const row = el('div', `message ${message.dir}`);
   if (fresh) row.classList.add('fresh');
+  const meta = el('div', 'meta', statusText(message));
   if (message.kind === 'file') {
     const card = el('div', 'transfer');
-    row.append(card);
+    row.append(card, meta);
     syncCard(card, message, fresh);
   } else {
-    row.append(el('div', 'bubble', message.text));
+    row.append(messageBody(message), rowActions(message), meta);
   }
-  const meta = el('div', 'meta', statusText(message));
-  row.append(meta);
-  rows.set(message.id, { row, meta });
+  rows.set(message.id, { row, meta, signature: rowSignature(message) });
   return row;
+}
+
+// Opening or unlocking changes what a row shows. File cards update in place to keep their animation.
+function refreshRow(message) {
+  const entry = rows.get(message.id);
+  entry.meta.textContent = statusText(message);
+  if (message.kind === 'file') {
+    syncCard(entry.row.querySelector('.transfer'), message, true);
+  } else if (entry.signature !== rowSignature(message)) {
+    entry.row.replaceChildren(messageBody(message), rowActions(message), entry.meta);
+    entry.signature = rowSignature(message);
+  }
+}
+
+async function unlockFlow(message) {
+  const text = await promptPassword({
+    title: 'Unlock message',
+    hint: message.dir === 'in' ? `Ask ${message.fromName} for the password if you don't have it.` : '',
+    confirm: 'Unlock',
+    check: (password) => window.messenger.unlock(message.conv, message.id, password),
+  });
+  if (text === null) return;
+  opened.set(message.id, text);
+  refreshRow(message);
+}
+
+let passwordRequest = null;
+
+function promptPassword({ title, hint, confirm, check }) {
+  $('password-title').textContent = title;
+  $('password-hint').textContent = hint;
+  $('password-confirm').textContent = confirm;
+  $('password-input').value = '';
+  $('password-error').hidden = true;
+  $('password-dialog').showModal();
+  return new Promise((resolve) => {
+    passwordRequest = { check, resolve };
+  });
+}
+
+function closePassword(value) {
+  $('password-dialog').close();
+  const request = passwordRequest;
+  passwordRequest = null;
+  if (request) request.resolve(value);
+}
+
+function setComposeMode(mode, password = null) {
+  composeMode = mode;
+  composePassword = password;
+  $('seal').setAttribute('aria-pressed', String(mode === 'sealed'));
+  $('lock').setAttribute('aria-pressed', String(mode === 'locked'));
+  $('text').placeholder = mode === 'locked' ? 'Write a locked message' : mode === 'sealed' ? 'Write a sealed message' : 'Write a message';
+}
+
+function openGroupDialog() {
+  const list = $('group-people');
+  list.replaceChildren();
+  for (const peer of sortPeers(peers)) {
+    const label = el('label');
+    const box = el('input');
+    box.type = 'checkbox';
+    box.value = peer.id;
+    label.append(box, document.createTextNode(peer.online ? peer.name : `${peer.name} (offline)`));
+    list.append(label);
+  }
+  if (!peers.length) list.append(el('p', 'section-note', 'No one to add yet.'));
+  $('group-name').value = '';
+  $('group-error').hidden = true;
+  $('group-dialog').showModal();
+}
+
+async function saveGroup(event) {
+  event.preventDefault();
+  const members = [...$('group-people').querySelectorAll('input:checked')].map((box) => box.value);
+  try {
+    const id = await window.messenger.createGroup($('group-name').value, members);
+    $('group-dialog').close();
+    groups[id] = groups[id] || { id, name: $('group-name').value, members: [settings.id, ...members] };
+    openConversation(id);
+  } catch (err) {
+    $('group-error').textContent = cleanError(err);
+    $('group-error').hidden = false;
+  }
+}
+
+function sendFromClipboard(event) {
+  const files = [...event.clipboardData.files];
+  if (!files.length || !active) return;
+  event.preventDefault();
+  for (const file of files) {
+    const filePath = window.messenger.pathForFile(file);
+    if (filePath) act(window.messenger.sendPaths(active, [filePath]));
+    else if (file.type.startsWith('image/')) act(file.arrayBuffer().then((data) => window.messenger.sendImage(active, data)));
+    else showError('That item cannot be sent. Save it as a file first.');
+  }
+}
+
+function setupDragAndDrop() {
+  let depth = 0;
+  const hasFiles = (event) => [...event.dataTransfer.types].includes('Files');
+  window.addEventListener('dragenter', (event) => {
+    if (!hasFiles(event) || !active) return;
+    depth += 1;
+    $('drop-overlay').hidden = false;
+  });
+  window.addEventListener('dragleave', () => {
+    depth = Math.max(0, depth - 1);
+    if (!depth) $('drop-overlay').hidden = true;
+  });
+  window.addEventListener('dragover', (event) => event.preventDefault());
+  window.addEventListener('drop', (event) => {
+    event.preventDefault();
+    depth = 0;
+    $('drop-overlay').hidden = true;
+    if (!active) return;
+    const paths = [...event.dataTransfer.files].map((file) => window.messenger.pathForFile(file)).filter(Boolean);
+    if (paths.length) act(window.messenger.sendPaths(active, paths));
+  });
 }
 
 function appendWithDay(container, message, previous, fresh) {
@@ -379,21 +670,23 @@ function upsertMessage(message) {
   else list.push(message);
   if (message.conv === active) {
     const container = $('messages');
-    const existing = rows.get(message.id);
-    if (existing) {
-      existing.meta.textContent = statusText(message);
-      const card = existing.row.querySelector('.transfer');
-      if (card) syncCard(card, message, true);
+    if (rows.has(message.id)) {
+      refreshRow(message);
     } else {
       const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 80;
       appendWithDay(container, message, previous, true);
       if (atBottom || message.dir === 'out') container.scrollTop = container.scrollHeight;
     }
   }
-  if (index < 0) renderPeople();
+  if (index < 0 || message.opened) renderPeople();
 }
 
 async function openConversation(id) {
+  if (active !== id) {
+    replyTo = null;
+    setComposeMode(null);
+    renderReplyBar();
+  }
   active = id;
   showError('');
   $('empty').hidden = true;
@@ -408,8 +701,12 @@ async function openConversation(id) {
 function submit() {
   const text = $('text').value;
   if (!text.trim() || !active) return;
-  act(window.messenger.sendText(active, text).then(() => {
+  const options = { reply: replyTo || undefined, sealed: composeMode === 'sealed', password: composePassword || undefined };
+  act(window.messenger.sendText(active, text, options).then(() => {
     $('text').value = '';
+    replyTo = null;
+    setComposeMode(null);
+    renderReplyBar();
     resizeComposer();
   }));
 }
@@ -427,25 +724,43 @@ function openSettings() {
   $('set-targets').value = settings.targets.join(', ');
   $('set-login').checked = settings.openAtLogin;
   $('set-id').textContent = settings.id;
+  $('set-group').value = settings.group;
+  $('set-away').checked = settings.away;
+  $('set-away-text').value = settings.awayText;
+  $('set-arrival').value = settings.arrival;
+  $('set-auto').checked = settings.autoAccept;
+  $('set-receipts').checked = settings.readReceipts;
   $('settings-error').hidden = true;
   $('settings').showModal();
 }
 
+function settingsForm() {
+  return {
+    name: $('set-name').value,
+    downloadDir: $('set-folder').value,
+    targets: $('set-targets').value,
+    openAtLogin: $('set-login').checked,
+    group: $('set-group').value,
+    away: $('set-away').checked,
+    awayText: $('set-away-text').value,
+    arrival: $('set-arrival').value,
+    autoAccept: $('set-auto').checked,
+    readReceipts: $('set-receipts').checked,
+  };
+}
+
 function renderMe() {
   $('my-name').textContent = settings.name;
+  $('sort').value = settings.sort;
   setAvatar($('my-avatar'), settings.id, settings.name);
 }
 
 async function saveSettings(event) {
   event.preventDefault();
   try {
-    settings = await window.messenger.saveSettings({
-      name: $('set-name').value,
-      downloadDir: $('set-folder').value,
-      targets: $('set-targets').value,
-      openAtLogin: $('set-login').checked,
-    });
+    settings = await window.messenger.saveSettings(settingsForm());
     renderMe();
+    renderPeople();
     $('settings').close();
   } catch (err) {
     $('settings-error').textContent = cleanError(err);
@@ -464,7 +779,54 @@ $('text').addEventListener('keydown', (event) => {
     submit();
   }
 });
-$('attach').addEventListener('click', () => act(window.messenger.sendFile(active)));
+$('text').addEventListener('paste', sendFromClipboard);
+$('attach').addEventListener('click', (event) => {
+  event.stopPropagation();
+  $('attach-menu').hidden = !$('attach-menu').hidden;
+});
+document.addEventListener('click', () => {
+  $('attach-menu').hidden = true;
+});
+$('attach-files').addEventListener('click', () => act(window.messenger.pickAndSend(active, 'files')));
+$('attach-folder').addEventListener('click', () => act(window.messenger.pickAndSend(active, 'folder')));
+$('seal').addEventListener('click', () => setComposeMode(composeMode === 'sealed' ? null : 'sealed'));
+$('lock').addEventListener('click', async () => {
+  if (composeMode === 'locked') {
+    setComposeMode(null);
+    return;
+  }
+  const password = await promptPassword({
+    title: 'Lock this message',
+    hint: 'Share the password with them another way. Beacon cannot recover it.',
+    confirm: 'Use password',
+    check: async (value) => value,
+  });
+  if (password) setComposeMode('locked', password);
+  $('text').focus();
+});
+$('reply-cancel').addEventListener('click', () => {
+  replyTo = null;
+  renderReplyBar();
+});
+$('sort').addEventListener('change', async () => {
+  settings = await window.messenger.saveSettings({ ...settings, targets: settings.targets.join(', '), sort: $('sort').value });
+  renderPeople();
+});
+$('new-group').addEventListener('click', openGroupDialog);
+$('cancel-group').addEventListener('click', () => $('group-dialog').close());
+$('group-form').addEventListener('submit', saveGroup);
+$('cancel-password').addEventListener('click', () => closePassword(null));
+$('password-dialog').addEventListener('cancel', () => closePassword(null));
+$('password-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    closePassword(await passwordRequest.check($('password-input').value));
+  } catch (err) {
+    $('password-error').textContent = cleanError(err);
+    $('password-error').hidden = false;
+  }
+});
+setupDragAndDrop();
 $('search').addEventListener('input', renderPeople);
 $('open-settings').addEventListener('click', openSettings);
 $('cancel-settings').addEventListener('click', () => $('settings').close());
@@ -479,6 +841,11 @@ window.messenger.onPeers((next) => {
   renderPeople();
   if (active) renderHeader();
 });
+window.messenger.onGroups((next) => {
+  groups = next;
+  renderPeople();
+  if (active) renderHeader();
+});
 window.messenger.onMessage(upsertMessage);
 window.messenger.onUpdated(upsertMessage);
 window.messenger.onUnread((next) => {
@@ -488,7 +855,7 @@ window.messenger.onUnread((next) => {
 window.messenger.onOpenConversation(openConversation);
 
 window.messenger.state().then((state) => {
-  ({ settings, peers, messages, unread } = state);
+  ({ settings, peers, messages, groups, unread } = state);
   renderMe();
   renderPeople();
 });
