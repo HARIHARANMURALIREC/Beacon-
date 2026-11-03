@@ -1,0 +1,6 @@
+{
+  "framework": null,
+  "installCommand": "echo Prebuilt site, nothing to install",
+  "buildCommand": "echo Prebuilt site, nothing to build",
+  "outputDirectory": "site-dist"
+}

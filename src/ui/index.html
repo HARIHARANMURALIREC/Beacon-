@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'">
+  <title>Beacon</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="drag-strip"></div>
+    <header class="brand">
+      <span class="brand-mark" aria-hidden="true"><i></i></span>
+      <strong>Beacon</strong>
+      <button id="open-settings" class="icon-button" type="button" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+      </button>
+    </header>
+    <div class="search-box">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+      <label class="visually-hidden" for="search">Search people</label>
+      <input id="search" type="search" placeholder="Search people" autocomplete="off">
+    </div>
+    <nav id="people" aria-label="People"></nav>
+    <footer class="me">
+      <span id="my-avatar" class="avatar" aria-hidden="true"></span>
+      <span class="me-text">
+        <strong id="my-name"></strong>
+        <span id="my-status" class="muted"></span>
+      </span>
+    </footer>
+  </aside>
+
+  <main class="chat">
+    <div class="drag-strip"></div>
+    <div id="empty" class="empty">
+      <div class="signal" aria-hidden="true"><i></i><i></i><i></i><b></b></div>
+      <h1>Pick someone to start chatting</h1>
+      <p class="muted">Colleagues on your network appear on the left once they open Beacon.</p>
+    </div>
+    <div id="conversation" class="conversation" hidden>
+      <header class="chat-header">
+        <span id="chat-avatar" class="avatar" aria-hidden="true"></span>
+        <div class="chat-heading">
+          <h2 id="chat-title"></h2>
+          <p id="chat-detail" class="muted"></p>
+        </div>
+      </header>
+      <p id="warning" class="warning" role="alert" hidden></p>
+      <div id="messages" class="messages" role="log" aria-live="polite"></div>
+      <p id="error" class="error" role="alert" hidden></p>
+      <form id="composer" class="composer">
+        <button id="attach" class="icon-button" type="button" aria-label="Send file" title="Send file">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4L14.5 7"/></svg>
+        </button>
+        <label class="visually-hidden" for="text">Message</label>
+        <textarea id="text" rows="1" placeholder="Write a message"></textarea>
+        <button class="send" type="submit" aria-label="Send" title="Send">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+        </button>
+      </form>
+    </div>
+  </main>
+
+  <dialog id="settings">
+    <form id="settings-form" method="dialog">
+      <h2>Settings</h2>
+      <label>Display name
+        <input id="set-name" maxlength="64" required>
+      </label>
+      <label>Save received files to
+        <span class="row">
+          <input id="set-folder" readonly>
+          <button id="choose-folder" class="ghost" type="button">Choose</button>
+        </span>
+      </label>
+      <label>Other offices or subnets
+        <textarea id="set-targets" rows="2" placeholder="10.2.0.255, 192.168.5.20"></textarea>
+        <span class="muted hint">IPv4 addresses to reach beyond this network: a subnet's broadcast address or one computer.</span>
+      </label>
+      <label class="check-row">
+        <input id="set-login" type="checkbox"> Open when I sign in
+      </label>
+      <p class="muted hint">Your device ID: <code id="set-id"></code></p>
+      <p id="settings-error" class="error" role="alert" hidden></p>
+      <div class="actions">
+        <button id="cancel-settings" class="ghost" type="button">Cancel</button>
+        <button class="primary" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+  <script src="app.js"></script>
+</body>
+</html>

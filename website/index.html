@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beacon: chat and file sharing for your network</title>
+  <meta name="description" content="Beacon is a desktop app for chat and file transfer between computers on the same network, with no accounts or central server.">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="nav">
+    <a class="logo" href="#top"><span class="mark" aria-hidden="true"><i></i></span>Beacon</a>
+    <nav aria-label="Page sections">
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="#before">Before you install</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-copy">
+        <h1>Chat and send files across your office network.</h1>
+        <p class="lead">Beacon finds colleagues on the same network automatically. No accounts to create and no central server to run.</p>
+        <div class="cta">
+          <a id="primary-download" class="button primary" href="{{WIN_URL}}">Download Beacon</a>
+          <a class="button ghost" href="#download">All downloads</a>
+        </div>
+        <p class="fineprint">Version {{VERSION}} for Windows and macOS</p>
+      </div>
+
+      <div class="demo" aria-hidden="true">
+        <div class="demo-window">
+          <div class="demo-bar"><span></span><span></span><span></span></div>
+          <div class="demo-chat">
+            <div class="demo-bubble theirs">Can you send the Q3 slides?</div>
+            <div class="demo-bubble mine">Sending now</div>
+            <div class="demo-card">
+              <div class="demo-head">
+                <span class="demo-icon">
+                  <svg class="demo-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5"/></svg>
+                  <svg class="demo-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+                </span>
+                <span class="demo-text">
+                  <b>Q3-slides.pptx</b>
+                  <small><span class="state-moving">48 MB · Sending</span><span class="state-done">48 MB · Sent</span></small>
+                </span>
+              </div>
+              <div class="demo-beam">
+                <span class="face a">AR</span>
+                <span class="demo-track"><i></i></span>
+                <span class="face b">BT</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="features">
+      <h2>Made for the network you already have</h2>
+      <div class="grid">
+        <article>
+          <h3>Finds people for you</h3>
+          <p>Anyone running Beacon on your network shows up in your list. Other subnets can be added in Settings.</p>
+        </article>
+        <article>
+          <h3>Files go straight across</h3>
+          <p>Files move directly between the two computers. The recipient accepts each one, and its checksum is verified on arrival.</p>
+        </article>
+        <article>
+          <h3>Encrypted in transit</h3>
+          <p>Messages and files are encrypted between devices, and each device has its own ID so you can check who you are talking to.</p>
+        </article>
+        <article>
+          <h3>Messages can wait</h3>
+          <p>Messages to someone offline are queued and sent when they return, as long as your app is still running.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="download" class="downloads">
+      <h2>Download</h2>
+      <div class="download-list">
+        <a class="download" data-os="windows" href="{{WIN_URL}}">
+          <span><b>Windows</b><small>64-bit, Windows 10 or later</small></span>
+          <span class="size">.exe · {{WIN_SIZE}}</span>
+        </a>
+        <a class="download" data-os="mac" href="{{ARM_URL}}">
+          <span><b>Mac with Apple silicon</b><small>M1 or later, macOS {{MAC_MIN}} or later</small></span>
+          <span class="size">.dmg · {{ARM_SIZE}}</span>
+        </a>
+        <a class="download" data-os="mac" href="{{X64_URL}}">
+          <span><b>Mac with Intel</b><small>macOS {{MAC_MIN}} or later</small></span>
+          <span class="size">.dmg · {{X64_SIZE}}</span>
+        </a>
+      </div>
+      <p class="fineprint">Not sure which Mac you have? Open the Apple menu and choose About This Mac.</p>
+      <details>
+        <summary>SHA-256 checksums</summary>
+        <dl class="checksums">
+          <dt>{{WIN_FILE}}</dt><dd>{{WIN_SHA}}</dd>
+          <dt>{{ARM_FILE}}</dt><dd>{{ARM_SHA}}</dd>
+          <dt>{{X64_FILE}}</dt><dd>{{X64_SHA}}</dd>
+        </dl>
+      </details>
+    </section>
+
+    <section id="install" class="install">
+      <h2>Install</h2>
+      <p class="section-lead">Beacon's installers aren't code-signed yet, so your computer will show a security warning the first time.</p>
+      <div class="steps">
+        <article>
+          <h3>Windows</h3>
+          <ol>
+            <li>Open the downloaded <code>.exe</code>.</li>
+            <li>If SmartScreen appears, choose <b>More info</b>, then <b>Run anyway</b>.</li>
+            <li>Approve the administrator prompt and finish the installer.</li>
+          </ol>
+        </article>
+        <article>
+          <h3>Mac</h3>
+          <ol>
+            <li>Open the <code>.dmg</code> and drag Beacon to Applications.</li>
+            <li>Open Beacon. If macOS blocks it, go to <b>System Settings</b>, then <b>Privacy &amp; Security</b>, and choose <b>Open Anyway</b>.</li>
+            <li>Allow local network access when asked.</li>
+          </ol>
+        </article>
+      </div>
+    </section>
+
+    <section id="before" class="before">
+      <h2>Before you install</h2>
+      <ul>
+        <li><b>Early release.</b> The encryption hasn't been independently reviewed, so don't rely on Beacon for highly confidential data yet.</li>
+        <li><b>Identity.</b> Anyone on your network running Beacon can join and pick any name. Check the device ID before sharing anything sensitive.</li>
+        <li><b>Saved data.</b> Chat history is stored unencrypted on each computer.</li>
+        <li><b>Network access.</b> Beacon needs UDP port 24250 and TCP port 24251. Guest Wi-Fi often blocks this kind of traffic.</li>
+        <li><b>Updates.</b> There are no automatic updates yet, so new versions are installed by hand.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span class="logo small"><span class="mark" aria-hidden="true"><i></i></span>Beacon {{VERSION}}</span>
+  </footer>
+  <script src="main.js"></script>
+</body>
+</html>

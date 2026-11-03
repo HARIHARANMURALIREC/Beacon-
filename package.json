@@ -1,0 +1,78 @@
+{
+  "name": "beacon",
+  "productName": "Beacon",
+  "version": "0.1.0",
+  "description": "Serverless encrypted chat and file transfer for your network",
+  "main": "src/main.js",
+  "private": true,
+  "author": "Internal Tools",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/core.test.js",
+    "icon": "node scripts/make-icon.js",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "site": "node scripts/build-site.js"
+  },
+  "build": {
+    "appId": "internal.beacon.messenger",
+    "productName": "Beacon",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "build/tray.png"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.business",
+      "identity": "-",
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "Beacon uses the local network to find colleagues and exchange messages and files."
+      },
+      "hardenedRuntime": false
+    },
+    "dmg": {
+      "artifactName": "Beacon-${version}-${arch}.dmg",
+      "format": "UDBZ"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Beacon-Setup-${version}.exe",
+      "signExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "include": "build/installer.nsh"
+    },
+    "compression": "maximum",
+    "electronLanguages": [
+      "en",
+      "en-US",
+      "en-GB"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0"
+  }
+}
