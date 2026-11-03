@@ -27,7 +27,7 @@
           <a id="primary-download" class="button primary" href="{{WIN_URL}}">Download Beacon</a>
           <a class="button ghost" href="#download">All downloads</a>
         </div>
-        <p class="fineprint">Version {{VERSION}} for Windows and macOS</p>
+        <p id="primary-note" class="fineprint">Version {{VERSION}} for Windows and macOS</p>
       </div>
 
       <div class="demo" aria-hidden="true">
@@ -83,15 +83,15 @@
     <section id="download" class="downloads">
       <h2>Download</h2>
       <div class="download-list">
-        <a class="download" data-os="windows" href="{{WIN_URL}}">
+        <a class="download" data-file="windows" href="{{WIN_URL}}">
           <span><b>Windows</b><small>64-bit, Windows 10 or later</small></span>
           <span class="size">.exe · {{WIN_SIZE}}</span>
         </a>
-        <a class="download" data-os="mac" href="{{ARM_URL}}">
+        <a class="download" data-file="mac-arm" href="{{ARM_URL}}">
           <span><b>Mac with Apple silicon</b><small>M1 or later, macOS {{MAC_MIN}} or later</small></span>
           <span class="size">.dmg · {{ARM_SIZE}}</span>
         </a>
-        <a class="download" data-os="mac" href="{{X64_URL}}">
+        <a class="download" data-file="mac-intel" href="{{X64_URL}}">
           <span><b>Mac with Intel</b><small>macOS {{MAC_MIN}} or later</small></span>
           <span class="size">.dmg · {{X64_SIZE}}</span>
         </a>
