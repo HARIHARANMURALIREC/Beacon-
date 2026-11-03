@@ -47,7 +47,11 @@ const html = template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
   return values[key];
 });
 fs.writeFileSync(path.join(out, 'index.html'), html);
-for (const file of ['style.css', 'main.js']) fs.copyFileSync(path.join(root, 'website', file), path.join(out, file));
+for (const file of ['style.css', 'main.js', 'animations.js']) fs.copyFileSync(path.join(root, 'website', file), path.join(out, file));
+fs.mkdirSync(path.join(out, 'vendor'));
+for (const file of ['gsap.min.js', 'ScrollTrigger.min.js']) {
+  fs.copyFileSync(path.join(root, 'node_modules', 'gsap', 'dist', file), path.join(out, 'vendor', file));
+}
 fs.copyFileSync(path.join(root, 'build', 'tray.png'), path.join(out, 'favicon.png'));
 if (!base) {
   fs.mkdirSync(path.join(out, 'downloads'));
